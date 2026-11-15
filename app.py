@@ -97,9 +97,11 @@ class RegistroBienestar(db.Model):
     )
 
 
-# Crear las tablas si todavia no existen
-with app.app_context():
-    db.create_all()
+# Crear las tablas al ejecutar la aplicación normalmente.
+# Durante las pruebas se utilizará una base de datos independiente.
+if os.environ.get("BIMO_TESTING") != "1":
+    with app.app_context():
+        db.create_all()
 
 LOGIN_PAGINA = """
 <!DOCTYPE html>
@@ -164,6 +166,7 @@ LOGIN_PAGINA = """
             <p class="error">{{ error }}</p>
         {% endif %}
     </div>
+  
 </body>
 </html>
 """
@@ -425,6 +428,36 @@ PAGINA = """
         <h2>Mis registros recientes</h2>
 
         {% if registros %}
+        <div class="tarjeta">
+    <h3>📊 Mi evolución de bienestar</h3>
+
+    <div style="display: flex; align-items: flex-end; gap: 12px;
+                height: 180px; padding: 15px 5px;">
+
+        {% for registro in registros|reverse %}
+        <div style="flex: 1; text-align: center; height: 100%;
+                    display: flex; flex-direction: column;
+                    justify-content: flex-end;">
+
+            <strong>{{ registro.puntuacion }}/5</strong>
+
+            <div style="height: 120px; display: flex;
+                        align-items: flex-end; justify-content: center;">
+
+                <div style="width: 70%; height: {{ registro.puntuacion * 20 }}%;
+                            background: #6485ee; border-radius: 7px 7px 0 0;">
+                </div>
+
+            </div>
+
+            <small>{{ registro.fecha.strftime('%d/%m') }}</small>
+        </div>
+        {% endfor %}
+
+    </div>
+
+    <p class="nota">Evolución de tus últimos registros de bienestar.</p>
+</div>
             {% for registro in registros %}
                 <div class="registro">
                     <strong>{{ registro.fecha.strftime('%d-%m-%Y') }}</strong>
@@ -438,20 +471,23 @@ PAGINA = """
             <p>Aún no tienes registros guardados.</p>
         {% endif %}
 
-        <p class="nota">
-            Prototipo local: estos datos todavía no están asociados
-            a una cuenta personal.
-        </p>
+<p class="nota">
+    Tus registros son privados y solo tú puedes consultarlos.
+</p>
     </div>
+    <p><a href="{{ url_for('logout') }}">Cerrar sesión</a></p>
 </body>
 </html>
 """
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
         if current_user.rol == "administrador":
             return redirect(url_for("panel_admin"))
+        elif current_user.rol == "organizacional":
+            return redirect(url_for("panel_organizacional"))
         return redirect(url_for("inicio"))
 
     error = None
@@ -473,6 +509,8 @@ def login():
 
             if usuario.rol == "administrador":
                 return redirect(url_for("panel_admin"))
+            elif usuario.rol == "organizacional":
+                return redirect(url_for("panel_organizacional"))
 
             return redirect(url_for("inicio"))
 
@@ -482,6 +520,7 @@ def login():
         LOGIN_PAGINA,
         error=error
     )
+
 @app.route("/logout")
 @login_required
 def logout():
@@ -574,77 +613,183 @@ def panel_admin():
         mensaje=mensaje
     )
 
+
+@app.route("/organizacional")
+@login_required
+def panel_organizacional():
+    if current_user.rol != "organizacional":
+        return "No tienes permisos para acceder a esta sección.", 403
+
+    organizacion = current_user.organizacion
+
+    if not organizacion:
+        return "Tu usuario no tiene una organización asociada.", 403
+
+    return render_template_string("""
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Bimo | Panel organizacional</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                background: #eef4ff;
+                color: #263b60;
+                text-align: center;
+                padding: 40px 20px;
+            }
+            .contenedor {
+                max-width: 650px;
+                margin: auto;
+                background: white;
+                padding: 35px;
+                border-radius: 20px;
+                box-shadow: 0 8px 25px #00000012;
+            }
+            .tarjeta {
+                background: #f3f6ff;
+                padding: 20px;
+                border-radius: 12px;
+                margin: 25px 0;
+            }
+            a {
+                color: #527bea;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="contenedor">
+            <h1>🏢 Espacio organizacional Bimo</h1>
+            <p>Bienvenido/a, {{ usuario.nombre }}.</p>
+
+            <div class="tarjeta">
+                <h2>{{ organizacion.nombre }}</h2>
+                <p>Panel de bienestar organizacional.</p>
+            </div>
+
+            <p>
+                Los indicadores generales de bienestar
+                estarán disponibles en una próxima etapa.
+            </p>
+
+            <p>
+                <a href="{{ url_for('logout') }}">Cerrar sesión</a>
+            </p>
+        </div>
+    </body>
+    </html>
+    """, usuario=current_user, organizacion=organizacion)
+
+
+
 def obtener_consejo(puntuacion, emocion):
+
+    # Bienestar bajo: mensajes de contención y autocuidado
     if puntuacion <= 2:
-        return (
-            "Gracias por compartir cómo te sientes. "
-            "Puedes darte una pausa y considerar buscar apoyo "
-            "si sientes que lo necesitas. 💙"
+        consejos = {
+            "estres": "Parece que estás pasando por un momento exigente. Intenta hacer una pausa y respirar tranquilamente. 💙",
+            "tristeza": "Está bien no sentirse bien todo el tiempo. Puedes buscar a alguien de confianza para conversar. 💙",
+            "enojo": "Cuando sientas enojo, intenta tomar distancia por un momento y recuperar la calma. 🌿",
+            "miedo": "No tienes que enfrentar todo a solas. Acercarte a alguien de confianza puede ayudarte. 💙",
+            "alegria": "Aunque hoy tu bienestar sea bajo, puedes reconocer los momentos que te generan alegría. 🌱",
+            "calma": "Intenta conservar esos pequeños momentos de tranquilidad durante tu día. 🌿",
+            "confusion": "Si sientes confusión, puedes tomarte un momento para ordenar tus ideas. 💙"
+        }
+        return consejos.get(
+            emocion,
+            "Gracias por compartir cómo te sientes. Recuerda que puedes buscar apoyo cuando lo necesites. 💙"
         )
 
+    # Bienestar intermedio
     if puntuacion == 3:
-        return (
-            "Gracias por registrar tu bienestar. "
-            "¿Qué pequeña acción podría ayudarte hoy? 🌿"
+        consejos = {
+            "estres": "Identifica qué situación te está generando estrés y considera realizar una pausa. 🌿",
+            "tristeza": "Puedes realizar una actividad agradable o conversar con alguien de confianza. 💙",
+            "enojo": "Intenta reconocer qué provocó tu enojo y busca una forma tranquila de expresarlo. 🌱",
+            "miedo": "Avanza paso a paso. No necesitas resolver todo de inmediato. 💙",
+            "alegria": "Reconoce aquello que te hizo sentir alegría y piensa cómo puedes repetirlo. 🌱",
+            "calma": "Qué bueno que encuentres momentos de calma. Intenta mantener ese espacio para ti. 🌿",
+            "confusion": "Puedes tomarte un tiempo para identificar qué necesitas en este momento. 💙"
+        }
+        return consejos.get(
+            emocion,
+            "¿Qué pequeña acción podría ayudarte a sentirte mejor hoy? 🌿"
         )
 
-    return (
-        "¡Gracias por compartir tu registro! "
-        "Reconoce aquello que está contribuyendo a tu bienestar. 💙"
+    # Bienestar alto
+    consejos = {
+        "estres": "Aunque tu bienestar sea positivo, recuerda darte espacios de descanso para prevenir la sobrecarga. 🌿",
+        "tristeza": "Reconoce lo que estás sintiendo y continúa dedicando tiempo a actividades que te hagan bien. 💙",
+        "enojo": "Es positivo reconocer tus emociones. Sigue buscando formas saludables de expresarlas. 🌱",
+        "miedo": "Reconoce tus avances y recuerda que puedes afrontar los desafíos paso a paso. 💙",
+        "alegria": "¡Qué bueno que te sientas así! Identifica qué contribuye a tu bienestar y sigue cultivándolo. 🌻",
+        "calma": "Disfruta este momento de tranquilidad y procura mantener hábitos que favorezcan tu bienestar. 🌿",
+        "confusion": "Aunque tengas dudas, puedes confiar en tus recursos y avanzar paso a paso. 💙"
+    }
+
+    return consejos.get(
+        emocion,
+        "¡Gracias por compartir tu bienestar! Sigue cuidando de ti. 💙"
     )
 
 
 @app.route("/", methods=["GET", "POST"])
+@login_required
 def inicio():
     mensaje = None
     consejo = None
 
     if request.method == "POST":
-        try:
-            puntuacion = int(request.form["puntuacion"])
-            emocion = request.form["emocion"]
 
-            emociones_validas = {
-                "alegria", "tristeza", "estres", "enojo",
-                "miedo", "calma", "confusion"
-            }
+            try:
+                puntuacion = int(request.form["puntuacion"])
+                emocion = request.form["emocion"]
 
-            if puntuacion not in range(1, 6):
-                raise ValueError("Puntuación no válida")
+                emociones_validas = {
+                    "alegria", "tristeza", "estres", "enojo",
+                    "miedo", "calma", "confusion"
+                }
 
-            if emocion not in emociones_validas:
-                raise ValueError("Emoción no válida")
+                if puntuacion not in range(1, 6):
+                    raise ValueError("Puntuación no válida")
 
-            hoy = date.today()
+                if emocion not in emociones_validas:
+                    raise ValueError("Emoción no válida")
 
-            # Prototipo de un solo usuario:
-            # actualiza el registro del día si ya existe.
-            registro = RegistroBienestar.query.filter_by(
-                fecha=hoy
-            ).first()
+                hoy = date.today()
 
-            if registro is None:
-                registro = RegistroBienestar(
+                registro = RegistroBienestar.query.filter_by(
                     fecha=hoy,
-                    puntuacion=puntuacion,
-                    emocion=emocion
-                )
-                db.session.add(registro)
-            else:
-                registro.puntuacion = puntuacion
-                registro.emocion = emocion
+                    usuario_id=current_user.id
+                ).first()
 
-            db.session.commit()
+                if registro is None:
+                    registro = RegistroBienestar(
+                        fecha=hoy,
+                        puntuacion=puntuacion,
+                        emocion=emocion,
+                        usuario_id=current_user.id
+                    )
+                    db.session.add(registro)
+                else:
+                    registro.puntuacion = puntuacion
+                    registro.emocion = emocion
 
-            mensaje = "¡Tu registro se guardó correctamente!"
-            consejo = obtener_consejo(puntuacion, emocion)
+                db.session.commit()
 
-        except (ValueError, KeyError):
-            db.session.rollback()
-            mensaje = "No pudimos guardar el registro."
-            consejo = "Selecciona una puntuación y una emoción válidas."
+                mensaje = "¡Tu registro se guardó correctamente!"
+                consejo = obtener_consejo(puntuacion, emocion)
 
-    registros = RegistroBienestar.query.order_by(
+            except (ValueError, KeyError):
+                db.session.rollback()
+                mensaje = "No pudimos guardar el registro."
+                consejo = "Selecciona una puntuación y una emoción válidas."
+
+    registros = RegistroBienestar.query.filter_by(
+        usuario_id=current_user.id
+    ).order_by(
         RegistroBienestar.fecha.desc()
     ).limit(7).all()
 
@@ -654,7 +799,6 @@ def inicio():
         consejo=consejo,
         registros=registros
     )
-
 
 if __name__ == "__main__":
     app.run(debug=True)
