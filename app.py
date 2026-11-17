@@ -22,9 +22,14 @@ app.secret_key = os.environ.get(
     "SECRET_KEY",
     "bimo-clave-desarrollo-cambiar-en-produccion"
 )
-# Configuracion de la base de datos
+# Configuración de la base de datos
 os.makedirs(app.instance_path, exist_ok=True)
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///bimo.db"
+
+if os.environ.get("BIMO_TESTING") == "1":
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite://"
+else:
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///bimo.db"
+
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)

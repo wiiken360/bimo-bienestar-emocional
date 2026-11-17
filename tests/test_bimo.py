@@ -16,6 +16,11 @@ app.config["TESTING"] = True
 @pytest.fixture()
 def cliente():
     with app.app_context():
+
+        # Verificar que las pruebas utilicen una base de datos temporal.
+        assert db.engine.url.drivername == "sqlite"
+        assert db.engine.url.database in (None, "")
+
         db.create_all()
 
         organizacion = Organizacion(
