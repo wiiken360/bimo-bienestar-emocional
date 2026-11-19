@@ -184,3 +184,59 @@ def test_trabajador_solo_visualiza_sus_propios_registros(cliente):
     assert respuesta.status_code == 200
     assert b"Bienestar: 2/5" in respuesta.data
     assert b"Bienestar: 5/5" not in respuesta.data
+def test_no_permite_puntuacion_fuera_de_rango(cliente):
+    cliente.post(
+        "/login",
+        data={
+            "correo": "trabajador@test.cl",
+            "contrasena": "Prueba12345"
+        }
+    )
+
+    respuesta = cliente.post(
+        "/",
+        data={
+            "puntuacion": "6",
+            "emocion": "estres"
+        }
+    )
+
+    trabajador = Usuario.query.filter_by(
+        correo="trabajador@test.cl"
+    ).first()
+
+    registros = RegistroBienestar.query.filter_by(
+        usuario_id=trabajador.id
+    ).count()
+
+    assert respuesta.status_code == 200
+    assert b"No pudimos guardar el registro." in respuesta.data
+    assert registros == 0
+def test_no_permite_emocion_no_reconocida(cliente):
+    cliente.post(
+        "/login",
+        data={
+            "correo": "trabajador@test.cl",
+            "contrasena": "Prueba12345"
+        }
+    )
+
+    respuesta = cliente.post(
+        "/",
+        data={
+            "puntuacion": "3",
+            "emocion": "ansiedad"
+        }
+    )
+
+    trabajador = Usuario.query.filter_by(
+        correo="trabajador@test.cl"
+    ).first()
+
+    registros = RegistroBienestar.query.filter_by(
+        usuario_id=trabajador.id
+    ).count()
+
+    assert respuesta.status_code == 200
+    assert b"No pudimos guardar el registro." in respuesta.data
+    assert registros == 0
