@@ -1,12 +1,12 @@
 
 import os
-
+from datetime import date
 # Activar el modo de pruebas antes de importar la aplicación.
 os.environ["BIMO_TESTING"] = "1"
 
 import pytest
 
-from app import app, db, Usuario, Organizacion, obtener_consejo
+from app import app, db, Usuario, Organizacion, RegistroBienestar, obtener_consejo
 from werkzeug.security import generate_password_hash
 
 # Base de datos temporal en memoria.
@@ -39,6 +39,17 @@ def cliente():
             activo=True
         )
         db.session.add(usuario)
+        db.session.commit()
+        usuario2 = Usuario(
+            nombre="Segundo Trabajador de Prueba",
+            correo="trabajador2@test.cl",
+            contrasena_hash=generate_password_hash("Prueba12345"),
+            rol="trabajador",
+            organizacion_id=organizacion.id,
+            activo=True
+        )
+
+        db.session.add(usuario2)
         db.session.commit()
         usuario_organizacional = Usuario(
             nombre="Encargado Organizacional",
@@ -134,3 +145,42 @@ def test_usuario_organizacional_no_puede_acceder_al_panel_admin(cliente):
     respuesta = cliente.get("/admin")
 
     assert respuesta.status_code == 403
+def test_trabajador_solo_visualiza_sus_propios_registros(cliente):
+    trabajador1 = Usuario.query.filter_by(
+        correo="trabajador@test.cl"
+    ).first()
+
+    trabajador2 = Usuario.query.filter_by(
+        correo="trabajador2@test.cl"
+    ).first()
+
+    registro1 = RegistroBienestar(
+        fecha=date.today(),
+        puntuacion=2,
+        emocion="estres",
+        usuario_id=trabajador1.id
+    )
+
+    registro2 = RegistroBienestar(
+        fecha=date.today(),
+        puntuacion=5,
+        emocion="alegria",
+        usuario_id=trabajador2.id
+    )
+
+    db.session.add_all([registro1, registro2])
+    db.session.commit()
+
+    cliente.post(
+        "/login",
+        data={
+            "correo": "trabajador@test.cl",
+            "contrasena": "Prueba12345"
+        }
+    )
+
+    respuesta = cliente.get("/")
+
+    assert respuesta.status_code == 200
+    assert b"Bienestar: 2/5" in respuesta.data
+    assert b"Bienestar: 5/5" not in respuesta.data
