@@ -743,6 +743,9 @@ def obtener_consejo(puntuacion, emocion):
 @app.route("/", methods=["GET", "POST"])
 @login_required
 def inicio():
+    if current_user.rol != "trabajador":
+        return "No tienes permisos para acceder a esta sección.", 403
+
     mensaje = None
     consejo = None
 

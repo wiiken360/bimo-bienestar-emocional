@@ -63,6 +63,18 @@ def cliente():
         db.session.add(usuario_organizacional)
         db.session.commit()
 
+        usuario_admin = Usuario(
+            nombre="Administrador de Prueba",
+            correo="admin@test.cl",
+            contrasena_hash=generate_password_hash("AdminPrueba123"),
+            rol="administrador",
+            organizacion_id=organizacion.id,
+            activo=True
+        )
+
+        db.session.add(usuario_admin)
+        db.session.commit()
+
         yield app.test_client()
 
         db.session.remove()
@@ -106,6 +118,19 @@ def test_trabajador_puede_iniciar_sesion(cliente):
 
     assert respuesta.status_code == 200
     assert b"Mis registros recientes" in respuesta.data
+
+def test_administrador_puede_iniciar_sesion(cliente):
+    respuesta = cliente.post(
+        "/login",
+        data={
+            "correo": "admin@test.cl",
+            "contrasena": "AdminPrueba123"
+        },
+        follow_redirects=True
+    )
+
+    assert respuesta.status_code == 200
+    assert "Bimo | Administración".encode("utf-8") in respuesta.data
 def test_trabajador_no_puede_acceder_al_panel_admin(cliente):
     cliente.post(
         "/login",
@@ -116,6 +141,20 @@ def test_trabajador_no_puede_acceder_al_panel_admin(cliente):
     )
 
     respuesta = cliente.get("/admin")
+
+    assert respuesta.status_code == 403
+
+
+def test_trabajador_no_puede_acceder_al_panel_organizacional(cliente):
+    cliente.post(
+        "/login",
+        data={
+            "correo": "trabajador@test.cl",
+            "contrasena": "Prueba12345"
+        }
+    )
+
+    respuesta = cliente.get("/organizacional")
 
     assert respuesta.status_code == 403
 
@@ -280,3 +319,74 @@ def test_actualiza_registro_existente_del_mismo_dia(cliente):
     assert len(registros) == 1
     assert registros[0].puntuacion == 4
     assert registros[0].emocion == "calma"
+
+def test_administrador_no_puede_acceder_al_panel_organizacional(cliente):
+    cliente.post(
+        "/login",
+        data={
+            "correo": "admin@test.cl",
+            "contrasena": "AdminPrueba123"
+        }
+    )
+
+    respuesta = cliente.get("/organizacional")
+
+    assert respuesta.status_code == 403
+
+def test_panel_organizacional_muestra_su_organizacion(cliente):
+    cliente.post(
+        "/login",
+        data={
+            "correo": "organizacion@test.cl",
+            "contrasena": "OrgPrueba123"
+        }
+    )
+
+    respuesta = cliente.get("/organizacional")
+
+    assert respuesta.status_code == 200
+    assert b"Organizacion de Prueba" in respuesta.data
+
+def test_usuario_organizacional_no_puede_registrar_bienestar(cliente):
+    cliente.post(
+        "/login",
+        data={
+            "correo": "organizacion@test.cl",
+            "contrasena": "OrgPrueba123"
+        }
+    )
+
+    respuesta = cliente.get("/")
+
+    assert respuesta.status_code == 403
+
+def test_administrador_no_puede_registrar_bienestar(cliente):
+    cliente.post(
+        "/login",
+        data={
+            "correo": "admin@test.cl",
+            "contrasena": "AdminPrueba123"
+        }
+    )
+
+    respuesta = cliente.get("/")
+
+    assert respuesta.status_code == 403
+
+def test_login_rechaza_contrasena_incorrecta(cliente):
+    respuesta = cliente.post(
+        "/login",
+        data={
+            "correo": "trabajador@test.cl",
+            "contrasena": "ContrasenaIncorrecta"
+        }
+    )
+
+    assert respuesta.status_code == 200
+    assert "Correo o contraseña incorrectos." in respuesta.get_data(as_text=True)
+
+def test_pagina_principal_redirige_sin_sesion(cliente):
+    respuesta = cliente.get("/")
+
+    assert respuesta.status_code == 302
+    assert "/login" in respuesta.location
