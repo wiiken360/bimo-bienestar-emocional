@@ -240,3 +240,43 @@ def test_no_permite_emocion_no_reconocida(cliente):
     assert respuesta.status_code == 200
     assert b"No pudimos guardar el registro." in respuesta.data
     assert registros == 0
+def test_actualiza_registro_existente_del_mismo_dia(cliente):
+    cliente.post(
+        "/login",
+        data={
+            "correo": "trabajador@test.cl",
+            "contrasena": "Prueba12345"
+        }
+    )
+
+    # Primer registro: estrés, puntuación 2.
+    cliente.post(
+        "/",
+        data={
+            "puntuacion": "2",
+            "emocion": "estres"
+        }
+    )
+
+    # Segundo registro: calma, puntuación 4.
+    respuesta = cliente.post(
+        "/",
+        data={
+            "puntuacion": "4",
+            "emocion": "calma"
+        }
+    )
+
+    trabajador = Usuario.query.filter_by(
+        correo="trabajador@test.cl"
+    ).first()
+
+    registros = RegistroBienestar.query.filter_by(
+        usuario_id=trabajador.id,
+        fecha=date.today()
+    ).all()
+
+    assert respuesta.status_code == 200
+    assert len(registros) == 1
+    assert registros[0].puntuacion == 4
+    assert registros[0].emocion == "calma"
