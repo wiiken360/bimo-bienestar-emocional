@@ -218,10 +218,6 @@ La interacción del agente Bimo en el MVP funciona mediante reglas y respuestas 
 
 Bimo se encuentra en la etapa de desarrollo y validación de su producto mínimo viable (MVP).
 
-Las funcionalidades F1, F2, F3 y F4 cuentan con una implementación local y pruebas automatizadas.
+Las funcionalidades F1, F2, F3 y F4 cuentan con implementación local y pruebas automatizadas. Durante el desarrollo se han fortalecido los controles de acceso, la privacidad de los registros, las validaciones del bienestar y la gestión de usuarios mediante el perfil administrador.
 
-Durante la preparación de la Sumativa 2 se han fortalecido los controles de acceso, la privacidad de los registros, las validaciones del bienestar y la documentación técnica.
-
-Se continúa trabajando en la gestión de configuración, la verificación de instalación y el despliegue del MVP en el ambiente de producción requerido para la evaluación.
-
-El estado de implementación local no implica que el despliegue en producción ya esté completado.
+La aplicación puede instalarse y ejecutarse localmente siguiendo las instrucciones descritas en este documento. Asimismo, se ha verificado su funcionamiento en un entorno virtual independiente y se han ejecutado satisfactoriamente 20 pruebas automatizadas.
