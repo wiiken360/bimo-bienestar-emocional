@@ -345,6 +345,7 @@ def test_panel_organizacional_muestra_su_organizacion(cliente):
     respuesta = cliente.get("/organizacional")
 
     assert respuesta.status_code == 200
+    assert b"Espacio organizacional Bimo" in respuesta.data
     assert b"Organizacion de Prueba" in respuesta.data
 
 def test_usuario_organizacional_no_puede_registrar_bienestar(cliente):
